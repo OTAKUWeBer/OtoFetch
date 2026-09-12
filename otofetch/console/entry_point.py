@@ -18,7 +18,12 @@ from otofetch.console.url import url
 from otofetch.download.downloader import Downloader, DownloaderError
 from otofetch.utils.arguments import parse_arguments
 from otofetch.utils.config import create_settings
-from otofetch.utils.console import ACTIONS, generate_initial_config, is_executable
+from otofetch.utils.console import (
+    ACTIONS,
+    clear_terminal,
+    generate_initial_config,
+    is_executable,
+)
 from otofetch.utils.downloader import check_ytmusic_connection
 from otofetch.utils.ffmpeg import FFmpegError, download_ffmpeg, is_ffmpeg_installed
 from otofetch.utils.logging import init_logging
@@ -57,9 +62,8 @@ def entry_point():
     """
     Console entry point for otofetch. This is where the magic happens.
     """
-    # Clear the terminal screen on app launch for a clean workspace
-    if sys.stdout.isatty():
-        os.system("cls" if os.name == "nt" else "clear")
+    # Clear the terminal screen on app launch for maximum workspace screen space
+    clear_terminal()
 
     # Create config file if it doesn't exist
     generate_initial_config()

@@ -3,6 +3,7 @@ Module for holding console related actions.
 """
 
 import json
+import os
 import sys
 
 from otofetch.utils.config import DEFAULT_CONFIG, get_config_file
@@ -13,6 +14,7 @@ from otofetch.utils.ffmpeg import get_local_ffmpeg, is_ffmpeg_installed
 from otofetch.utils.github import check_for_updates as get_update_status
 
 __all__ = [
+    "clear_terminal",
     "is_frozen",
     "is_executable",
     "generate_initial_config",
@@ -22,6 +24,23 @@ __all__ = [
     "download_deno",
     "ACTIONS",
 ]
+
+
+def clear_terminal() -> None:
+    """
+    Clear the terminal/command prompt completely for maximum screen space.
+    Works across Windows CMD, PowerShell, Windows Terminal, Linux, macOS, and ANSI shells.
+    """
+    try:
+        if sys.stdout.isatty():
+            if os.name == "nt":
+                os.system("cls")
+            else:
+                os.system("clear")
+            sys.stdout.write("\033[H\033[2J\033[3J")
+            sys.stdout.flush()
+    except Exception:
+        pass
 
 
 def is_frozen():

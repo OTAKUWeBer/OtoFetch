@@ -8,6 +8,8 @@ from itertools import product, zip_longest
 from math import exp
 from typing import Dict, List, Optional, Tuple
 
+from rapidfuzz import fuzz
+
 from otofetch.types.result import Result
 from otofetch.types.song import Song
 from otofetch.utils.formatter import (
@@ -309,8 +311,16 @@ def calc_main_artist_match(song: Song, result: Result) -> float:
 
     main_artist_match = 0.0
 
-    # Result has no artists, return 0.0
+    # If result has no parsed artists (typical for standard YouTube videos), check in name and author
     if not result.artists:
+        res_text = slugify(f"{result.name} {result.author or ''}").replace("-", "")
+        main_art_slug = slugify(song.artist).replace("-", "")
+        if main_art_slug and main_art_slug in res_text:
+            return 90.0
+        for artist in song.artists:
+            art_slug = slugify(artist).replace("-", "")
+            if len(art_slug) > 2 and art_slug in res_text:
+                return 80.0
         return main_artist_match
 
     song_artists, result_artists = list(map(slugify, song.artists)), list(
@@ -378,8 +388,17 @@ def calc_artists_match(song: Song, result: Result) -> float:
 
     artist_match_number = 0.0
 
-    # Result has only one artist, return 0.0
-    if len(song.artists) == 1 or not result.artists:
+    if len(song.artists) == 1:
+        return 100.0 if calc_main_artist_match(song, result) >= 70 else 0.0
+
+    if not result.artists:
+        res_text = slugify(f"{result.name} {result.author or ''}").replace("-", "")
+        matched_count = sum(
+            1 for artist in song.artists
+            if len(slugify(artist).replace("-", "")) > 2 and slugify(artist).replace("-", "") in res_text
+        )
+        if matched_count > 0:
+            return (matched_count / len(song.artists)) * 100.0
         return artist_match_number
 
     artist1_list, artist2_list = based_sort(
@@ -394,7 +413,7 @@ def calc_artists_match(song: Song, result: Result) -> float:
         artist12_match = ratio(artist1, artist2)
         artists_match += artist12_match
 
-    artist_match_number = artists_match / len(artist1_list)
+    artist_match_number = artists_match / len(artist1_list) if artist1_list else 0.0
 
     return artist_match_number
 
@@ -421,7 +440,7 @@ def artists_match_fixup1(song: Song, result: Result, score: float) -> float:
     # we fallback to channel name match
     channel_name_match = ratio(
         slugify(song.artist),
-        slugify(", ".join(result.artists)) if result.artists else "",
+        slugify(", ".join(result.artists)) if result.artists else (slugify(result.author) if result.author else ""),
     )
 
     score = max(score, channel_name_match)
@@ -431,7 +450,7 @@ def artists_match_fixup1(song: Song, result: Result, score: float) -> float:
     # with the result's title
     if score <= 70:
         artist_title_match = 0.0
-        result_name = slugify(result.name).replace("-", "")
+        result_name = slugify(f"{result.name} {result.author or ''}").replace("-", "")
         for artist in song.artists:
             slug_artist = slugify(artist).replace("-", "")
 
@@ -610,6 +629,13 @@ def calc_name_match(
         clean_match = ratio(clean_result_name, clean_song_name)
         name_match = max(name_match, clean_match)
 
+        token_match = float(fuzz.token_set_ratio(song.name, result.name))
+        partial_match = float(fuzz.partial_ratio(clean_song_name, clean_result_name))
+        if clean_song_name.replace("-", "") in clean_result_name.replace("-", ""):
+            name_match = max(name_match, 90.0, token_match, partial_match)
+        else:
+            name_match = max(name_match, token_match * 0.9, partial_match * 0.9)
+
     # If name match is lower than 75%,
     # we try to match using the test strings
     if name_match <= 75:
@@ -778,26 +804,33 @@ def order_results(
         time_match = calc_time_match(song, result)
         debug(song.song_id, result.result_id, f"Final time match: {time_match}")
 
-        # Ignore results with name match lower than 60%
-        if name_match <= 60:
+        # Boost artist match if the song title matches strongly
+        if name_match >= 70:
+            artists_match = max(artists_match, 75.0)
+
+        # Ignore results with name match lower than 40%
+        if name_match < 40:
             debug(
                 song.song_id,
                 result.result_id,
-                "Skipping result due to name match lower than 60%",
+                "Skipping result due to name match lower than 40%",
             )
             continue
 
-        # Ignore results with artists match lower than 70%
-        if artists_match < 70 and result.source != "slider.kz":
+        # If name match is at least 65%, artist match is completely optional
+        if name_match < 65 and artists_match < 40 and result.source != "slider.kz":
             debug(
                 song.song_id,
                 result.result_id,
-                "Skipping result due to artists match lower than 70%",
+                "Skipping result due to low name match and low artist match",
             )
             continue
 
-        # Calculate total match
-        average_match = (artists_match + name_match) / 2
+        # Calculate composite match: name_match is primary, artists_match is bonus/weighted
+        if name_match >= 70:
+            average_match = (name_match * 0.75) + (artists_match * 0.25)
+        else:
+            average_match = (artists_match + name_match) / 2
         debug(song.song_id, result.result_id, f"Average match: {average_match}")
 
         if (

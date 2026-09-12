@@ -217,7 +217,7 @@ class AudioProvider:
                     if score >= 70.0 and isrc_res.url not in candidates:
                         candidates.append(isrc_res.url)
 
-        # Build candidate search queries with smart regex cleanups for subtitles/brackets
+        # Build candidate search queries with smart cleanups and fallbacks
         candidate_queries = [search_query]
         clean_name = re.sub(r"[\(\[].*?[\)\]]", "", song.name).strip()
         if clean_name and clean_name.lower() != song.name.lower():
@@ -233,6 +233,17 @@ class AudioProvider:
             simple_artist_query = f"{song.artist} - {song.name}".lower()
             if simple_artist_query not in candidate_queries:
                 candidate_queries.append(simple_artist_query)
+
+        # Query fallback with title + album name (for OSTs, Bollywood, and soundtrack songs)
+        if song.album_name and song.album_name.lower() not in song.name.lower():
+            album_query = f"{clean_name or song.name} {song.album_name}".lower()
+            if album_query not in candidate_queries:
+                candidate_queries.append(album_query)
+
+        # Query fallback with song title only
+        title_only = (clean_name or song.name).lower()
+        if title_only not in candidate_queries:
+            candidate_queries.append(title_only)
 
         results: Dict[Result, float] = {}
         for query in candidate_queries:
@@ -273,9 +284,9 @@ class AudioProvider:
 
         # Sort all aggregated results by composite score
         if results:
-            best_matches = get_best_matches(results, limit=limit * 2)
-            for res, score in best_matches:
-                if score >= 50.0 and res.url not in candidates:
+            sorted_res = sorted(results.items(), key=lambda x: x[1], reverse=True)
+            for res, score in sorted_res:
+                if score >= 45.0 and res.url not in candidates:
                     candidates.append(res.url)
 
         return candidates[:limit]
