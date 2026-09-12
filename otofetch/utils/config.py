@@ -296,7 +296,7 @@ SPOTIFY_OPTIONS: SpotifyOptions = {
 }
 
 DOWNLOADER_OPTIONS: DownloaderOptions = {
-    "audio_providers": ["youtube-music"],
+    "audio_providers": ["youtube", "youtube-music", "soundcloud"],
     "lyrics_providers": ["genius", "azlyrics", "musixmatch"],
     "genius_token": "alXXDbPZtK1m2RrZ8I4k2Hn8Ahsd0Gh_o076HYvcdlBvmc0ULL1H8Z8xRlew5qaG",
     "playlist_numbering": False,

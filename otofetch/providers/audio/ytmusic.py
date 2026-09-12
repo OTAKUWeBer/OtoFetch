@@ -22,7 +22,7 @@ class YouTubeMusic(AudioProvider):
     """
 
     SUPPORTS_ISRC = True
-    SEARCH_ATTEMPTS = 3
+    SEARCH_ATTEMPTS = 1
     GET_RESULTS_OPTS: List[Dict[str, Any]] = [
         {"filter": "songs", "ignore_spelling": True, "limit": 50},
         {"filter": "videos", "ignore_spelling": True, "limit": 50},
