@@ -12,8 +12,9 @@ Welcome to the comprehensive guide for **OtoFetch**—the fast, lightweight, and
 4. [Managing & Syncing Playlists](#4-managing--syncing-playlists)
 5. [Lyrics & Playlist Files (.lrc & .m3u8)](#5-lyrics--playlist-files-lrc--m3u8)
 6. [Speed & Performance Optimization](#6-speed--performance-optimization)
-7. [Advanced: Cookies & API Authentication](#7-advanced-cookies--api-authentication)
-8. [Troubleshooting & FAQ](#8-troubleshooting--faq)
+7. [Post-Download Summary & Auto-Reports](#7-post-download-summary--auto-reports)
+8. [Advanced: Cookies & API Authentication](#8-advanced-cookies--api-authentication)
+9. [Troubleshooting & FAQ](#9-troubleshooting--faq)
 
 ---
 
@@ -58,7 +59,7 @@ otofetch "TRACK_URL" --format flac
 # AAC / M4A (Apple-compatible):
 otofetch "TRACK_URL" --format m4a
 
-# Opus (High compression / streaming quality):
+# Opus (High compression efficiency):
 otofetch "TRACK_URL" --format opus
 
 # OGG Vorbis:
@@ -70,65 +71,47 @@ otofetch "TRACK_URL" --format wav
 
 ### 🎚️ Custom Bitrate
 ```bash
-# Force 320 kbps MP3:
-otofetch "TRACK_URL" --format mp3 --bitrate 320k
-
-# Variable Bitrate (0 = highest VBR quality):
-otofetch "TRACK_URL" --bitrate 0
+otofetch "TRACK_URL" --bitrate 320k
 ```
 
 ---
 
 ## 3. Custom Directory & File Naming
 
-By default, downloads are placed in the `Music/` folder. You can customize the folder structure using template variables.
+By default, OtoFetch saves all downloaded music cleanly into your system's `Music/` folder:
+`Music/{artists} - {title}.{output-ext}`
 
-### 📂 Organize by Playlist Name:
+### 📂 Save into Subfolders (e.g. `Artist/Album/Song`)
 ```bash
-otofetch "PLAYLIST_URL" --output "Music/{list-name}/{artist} - {title}.{output-ext}"
+otofetch "PLAYLIST_URL" --output "Music/{artist}/{album}/{title}.{output-ext}"
 ```
 
-### 📁 Organize by Artist & Album:
-```bash
-otofetch "PLAYLIST_URL" --output "Music/{album-artist}/{album}/{track-number} - {title}.{output-ext}"
-```
-
-### 🏷️ Available Template Variables:
-
-| Variable | Description | Example |
-|---|---|---|
+### 🏷️ Available Template Placeholders
+| Placeholder | Description | Example |
+| :--- | :--- | :--- |
 | `{title}` | Track title | `Blinding Lights` |
-| `{artist}` | Primary artist name | `The Weeknd` |
-| `{artists}` | All contributing artists | `The Weeknd, Daft Punk` |
-| `{album}` | Album name | `After Hours` |
+| `{artists}` | All contributing artists | `The Weeknd` |
+| `{artist}` | Primary artist | `The Weeknd` |
+| `{album}` | Album or EP name | `After Hours` |
 | `{album-artist}` | Main album artist | `The Weeknd` |
-| `{track-number}` | Track number on album | `01`, `02` |
-| `{tracks-count}` | Total tracks on album | `14` |
-| `{disc-number}` | Disc number | `1` |
+| `{track-number}` | Track number on album | `09` |
 | `{year}` | Release year | `2020` |
-| `{genre}` | Primary genre | `Pop` |
-| `{isrc}` | Track ISRC code | `USUM71900764` |
-| `{list-name}` | Name of playlist or album | `My Top Hits` |
-| `{output-ext}` | File extension | `mp3`, `flac` |
+| `{output-ext}` | Output audio extension | `mp3` |
 
 ---
 
 ## 4. Managing & Syncing Playlists
 
-The `sync` operation keeps a local music folder synchronized with a Spotify playlist:
+Keep a local folder permanently synchronized with a Spotify playlist. OtoFetch automatically downloads newly added songs and cleans up tracks removed from the playlist:
 
+### 1️⃣ Create a sync tracking file:
 ```bash
-# 1. Initial Sync & Save state:
-otofetch sync "PLAYLIST_URL" --save-file my_playlist.otofetch
-
-# 2. Later: Re-run to fetch new songs & remove deleted tracks:
-otofetch sync "PLAYLIST_URL" --save-file my_playlist.otofetch
+otofetch sync "https://open.spotify.com/playlist/YOUR_PLAYLIST_ID" --save-file "my_playlist.otofetch"
 ```
 
-### Safe Syncing (Keep Local Songs):
-If you want to download new songs without deleting songs that were removed from the Spotify playlist:
+### 2️⃣ Re-run synchronization whenever the playlist updates:
 ```bash
-otofetch sync "PLAYLIST_URL" --save-file my_playlist.otofetch --sync-without-deleting
+otofetch sync "my_playlist.otofetch"
 ```
 
 ---
@@ -136,15 +119,15 @@ otofetch sync "PLAYLIST_URL" --save-file my_playlist.otofetch --sync-without-del
 ## 5. Lyrics & Playlist Files (.lrc & .m3u8)
 
 ### 🎤 Synchronized Lyrics (.lrc)
-Generate timestamped `.lrc` files compatible with music players (VLC, Poweramp, Musicolet, foobar2000):
+Embed timed karaoke-style lyrics and create matching `.lrc` files for players like VLC, AIMP, and Apple Music:
 ```bash
 otofetch "PLAYLIST_URL" --generate-lrc
 ```
 
-### 📋 M3U8 Playlist File
-Generate a playlist file that your media player can load:
+### 📋 M3U8 Playlist Generation
+Automatically generate an `.m3u8` playlist file to load all downloaded songs into your favorite media player:
 ```bash
-otofetch "PLAYLIST_URL" --m3u
+otofetch "PLAYLIST_URL" --m3u "MyFavorites.m3u8"
 ```
 
 ---
@@ -154,23 +137,38 @@ otofetch "PLAYLIST_URL" --m3u
 For fast downloading of large playlists (200+ songs):
 
 ```bash
-otofetch "PLAYLIST_URL" --threads 8 --lyrics
+otofetch "PLAYLIST_URL" --threads 8
 ```
 
 - **`--threads 8`**: Downloads 8 tracks simultaneously in parallel.
-- **`--lyrics`** *(empty)*: Disables web scraping for lyric text, speeding up downloads.
 
 ---
 
-## 7. Advanced: Cookies & API Authentication
+## 7. Post-Download Summary & Auto-Reports
+
+Every download run concludes with a rich statistics overview:
+- **Summary Metrics**: Total processed, successful downloads, duplicates/skipped, and failed count.
+- **Speed & Duration**: Elapsed execution time and average processing throughput (songs/sec).
+- **Unresolved Tracks Table**: Clear categorization of why any tracks were skipped or failed.
+- **Auto-saved Report File (`logs/otofetch_report.txt`)**: A full timestamped log of all downloaded files, paths, and errors.
+- **One-Click Retry File (`logs/otofetch_failed.txt`)**: Automatically generated when tracks fail. You can immediately retry all remaining songs:
+  ```bash
+  python -m otofetch "logs/otofetch_failed.txt"
+  ```
+
+---
+
+## 8. Advanced: Cookies & API Authentication
 
 ### 🍪 Using YouTube Cookies (Premium Audio / Age-Restricted Tracks)
-If you have YouTube Premium or want to bypass regional restrictions, pass a Netscape formatted cookies file:
+If you encounter age-gated tracks or want to use YouTube Premium audio streams:
 
 ```bash
 otofetch "PLAYLIST_URL" --cookie-file "cookies.txt"
+# OR direct browser cookie extraction:
+otofetch "PLAYLIST_URL" --cookies-from-browser chrome
 ```
-*(You can export `cookies.txt` from your browser using extensions like 'Get cookies.txt LOCALLY').*
+*(You can export `cookies.txt` using browser extensions like 'Get cookies.txt LOCALLY').*
 
 ### 🔑 Using Official Spotify Developer API
 By default, OtoFetch uses anonymous access without needing keys. If you want to use your Spotify Developer account credentials:
@@ -181,7 +179,7 @@ otofetch "PLAYLIST_URL" --use-official-api --client-id "YOUR_ID" --client-secret
 
 ---
 
-## 8. Troubleshooting & FAQ
+## 9. Troubleshooting & FAQ
 
 ### Q: Why do I see `FFmpeg is not installed`?
 **A:** Run `otofetch --download-ffmpeg` to let OtoFetch automatically download and set up a local FFmpeg binary.

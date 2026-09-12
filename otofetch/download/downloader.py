@@ -9,6 +9,7 @@ import logging
 import re
 import shutil
 import sys
+import time
 import traceback
 from argparse import Namespace
 from pathlib import Path
@@ -43,6 +44,7 @@ from otofetch.utils.formatter import create_file_name
 from otofetch.utils.lrc import generate_lrc
 from otofetch.utils.m3u import gen_m3u_files
 from otofetch.utils.metadata import MetadataError, embed_metadata
+from otofetch.utils.report import print_download_summary
 from otofetch.utils.search import gather_known_songs, reinit_song, songs_from_albums
 
 __all__ = [
@@ -212,7 +214,10 @@ class Downloader:
                 )
             )
 
-        # Initialize list of errors
+        # Initialize tracking lists
+        self.downloaded_songs: List[Tuple[Song, Path]] = []
+        self.skipped_songs: List[Tuple[Song, Path]] = []
+        self.failed_songs: List[Tuple[Song, str]] = []
         self.errors: List[str] = []
 
         # Initialize proxy server
@@ -291,11 +296,18 @@ class Downloader:
 
         self.progress_handler.set_song_count(len(songs))
 
+        # Reset tracking lists for this run
+        self.downloaded_songs = []
+        self.skipped_songs = []
+        self.failed_songs = []
+        start_time = time.perf_counter()
+
         # Create tasks list
         tasks = [self.pool_download(song) for song in songs]
 
         # Call all task asynchronously, and wait until all are finished
         results = list(self.loop.run_until_complete(asyncio.gather(*tasks)))
+        duration = time.perf_counter() - start_time
 
         # Print errors
         if self.settings["print_errors"]:
@@ -353,6 +365,31 @@ class Downloader:
 
             logger.info("Saved results to %s", self.settings["save_file"])
 
+        # Close progress handler before printing final summary table
+        try:
+            self.progress_handler.close()
+        except Exception:
+            pass
+
+        # Determine target output directory for report files
+        dest_dir = "Music"
+        if self.settings.get("output"):
+            out_p = Path(self.settings["output"])
+            if len(out_p.parts) > 1:
+                dest_dir = str(out_p.parent)
+
+        try:
+            print_download_summary(
+                total_requested=len(songs),
+                downloaded_songs=self.downloaded_songs,
+                skipped_songs=self.skipped_songs,
+                failed_songs=self.failed_songs,
+                duration=duration,
+                output_dir=dest_dir,
+            )
+        except Exception as report_err:
+            logger.debug("Summary display error: %s", report_err)
+
         return results
 
     async def pool_download(self, song: Song) -> Tuple[Song, Optional[Path]]:
@@ -375,6 +412,34 @@ class Downloader:
         async with self.semaphore:
             return await self.async_search_and_download(song)
 
+    def search_candidates(self, song: Song, limit: int = 3) -> List[str]:
+        """
+        Search for candidate download URLs across all available providers.
+
+        ### Arguments
+        - song: The song to search for.
+        - limit: Maximum number of candidate URLs to collect.
+
+        ### Returns
+        - list of download URLs in priority order.
+        """
+        candidates: List[str] = []
+        for audio_provider in self.audio_providers:
+            try:
+                prov_cands = audio_provider.search_candidates(
+                    song, self.settings["only_verified_results"], limit=limit
+                )
+                for cand in prov_cands:
+                    if cand not in candidates:
+                        candidates.append(cand)
+            except Exception as e:
+                logger.debug("%s candidate search error for %s: %s", audio_provider.name, song.display_name, e)
+
+        if not candidates:
+            raise LookupError(f"No results found for song: {song.display_name}")
+
+        return candidates
+
     def search(self, song: Song) -> str:
         """
         Search for a song using all available providers.
@@ -383,17 +448,10 @@ class Downloader:
         - song: The song to search for.
 
         ### Returns
-        - tuple with download url and audio provider if successful.
+        - download url if successful.
         """
-
-        for audio_provider in self.audio_providers:
-            url = audio_provider.search(song, self.settings["only_verified_results"])
-            if url:
-                return url
-
-            logger.debug("%s failed to find %s", audio_provider.name, song.display_name)
-
-        raise LookupError(f"No results found for song: {song.display_name}")
+        candidates = self.search_candidates(song, limit=1)
+        return candidates[0]
 
     def search_lyrics(self, song: Song) -> Optional[str]:
         """
@@ -579,6 +637,9 @@ class Downloader:
                 )
 
                 display_progress_tracker.notify_download_skip()
+                self.skipped_songs.append(
+                    (song, output_file if output_file.exists() else (dup_song_paths[0] if dup_song_paths else output_file))
+                )
                 return song, output_file
 
             # Don't skip if the file exists and overwrite is set to force
@@ -715,29 +776,43 @@ class Downloader:
                 display_progress_tracker.yt_dlp_progress_hook
             )
 
-            if song.download_url is None:
-                display_progress_tracker.notify_searching()
-                download_url = await loop.run_in_executor(None, self.search, song)
+            if song.download_url is not None:
+                candidate_urls = [song.download_url]
             else:
-                download_url = song.download_url
-
-            display_progress_tracker.notify_getting_meta()
-
-            logger.debug("Downloading %s using %s", song.display_name, download_url)
-            download_info = await loop.run_in_executor(
-                None,
-                lambda: audio_downloader.get_download_metadata(
-                    download_url, download=True
-                ),
-            )
-
-            if download_info is None:
-                logger.debug(
-                    "No download info found for %s, url: %s",
-                    song.display_name,
-                    download_url,
+                display_progress_tracker.notify_searching()
+                candidate_urls = await loop.run_in_executor(
+                    None, self.search_candidates, song
                 )
 
+            download_info = None
+            download_url = None
+            last_download_error = None
+
+            for attempt_url in candidate_urls:
+                try:
+                    display_progress_tracker.notify_getting_meta()
+                    logger.debug("Downloading %s using %s", song.display_name, attempt_url)
+                    download_info = await loop.run_in_executor(
+                        None,
+                        lambda u=attempt_url: audio_downloader.get_download_metadata(
+                            u, download=True
+                        ),
+                    )
+                    if download_info:
+                        download_url = attempt_url
+                        break
+                except Exception as attempt_err:
+                    last_download_error = attempt_err
+                    logger.debug(
+                        "Candidate download failed for %s (%s): %s",
+                        song.display_name,
+                        attempt_url,
+                        attempt_err,
+                    )
+
+            if download_info is None:
+                if last_download_error:
+                    raise last_download_error
                 raise DownloaderError(
                     f"yt-dlp failed to get metadata for: {song.name} - {song.artist}"
                 )
@@ -894,8 +969,9 @@ class Downloader:
             display_progress_tracker.notify_complete()
             display_progress_tracker.set_path(str(output_file))
 
-            # Add the song to the known songs
+            # Add the song to the known songs and tracking
             self.known_songs.get(song.url, []).append(output_file)
+            self.downloaded_songs.append((song, output_file))
 
             logger.info('Downloaded "%s": %s', song.display_name, song.download_url)
 
@@ -920,7 +996,7 @@ class Downloader:
             display_progress_tracker.notify_error(
                 traceback.format_exc(), exception, True
             )
-            self.errors.append(
-                f"{song.url} - {exception.__class__.__name__}: {exception}"
-            )
+            clean_err = f"{exception.__class__.__name__}: {exception}"
+            self.errors.append(f"{song.url} - {clean_err}")
+            self.failed_songs.append((song, clean_err))
             return song, None

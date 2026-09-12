@@ -57,6 +57,9 @@ def entry_point():
     """
     Console entry point for otofetch. This is where the magic happens.
     """
+    # Clear the terminal screen on app launch for a clean workspace
+    if sys.stdout.isatty():
+        os.system("cls" if os.name == "nt" else "clear")
 
     # Create config file if it doesn't exist
     generate_initial_config()
@@ -175,4 +178,4 @@ def entry_point():
 
     downloader.progress_handler.close()
 
-    return None
+    os._exit(0)

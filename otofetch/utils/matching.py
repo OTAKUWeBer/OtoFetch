@@ -188,13 +188,22 @@ def check_common_word(song: Song, result: Result) -> bool:
     ### Returns
     - True if word is present in sentence, False otherwise
     """
+    sentence_words = [w for w in slugify(song.name).split("-") if len(w) > 1]
+    if not sentence_words:
+        return True
 
-    sentence_words = slugify(song.name).split("-")
     to_check = slugify(result.name).replace("-", "")
 
     for word in sentence_words:
-        if word != "" and word in to_check:
+        if word in to_check:
             return True
+
+    # Also check if main artist or author matches
+    for artist in song.artists:
+        art_words = [w for w in slugify(artist).split("-") if len(w) > 2]
+        for aw in art_words:
+            if aw in to_check or (result.author and aw in slugify(result.author).replace("-", "")):
+                return True
 
     return False
 

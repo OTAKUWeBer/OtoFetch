@@ -35,10 +35,16 @@ class YouTube(AudioProvider):
         search_opts: Dict[str, Any] = {
             **self.audio_handler.params,
             "skip_download": True,
+            "ignoreerrors": True,
+            "quiet": True,
+            "no_warnings": True,
         }
 
-        with YoutubeDL(search_opts) as ydl:
-            info = ydl.extract_info(f"ytsearch10:{search_term}", download=False)
+        try:
+            with YoutubeDL(search_opts) as ydl:
+                info = ydl.extract_info(f"ytsearch10:{search_term}", download=False)
+        except Exception:
+            return []
 
         if not info or "entries" not in info:
             return []

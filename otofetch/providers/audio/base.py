@@ -157,17 +157,20 @@ class AudioProvider:
 
         return data["view_count"]
 
-    def search(self, song: Song, only_verified: bool = False) -> Optional[str]:
+    def search_candidates(
+        self, song: Song, only_verified: bool = False, limit: int = 4
+    ) -> List[str]:
         """
-        Search for a song and return best match.
+        Search for a song and return top candidate download URLs in priority order.
 
         ### Arguments
         - song: The song to search for.
+        - only_verified: Whether to accept only verified results.
+        - limit: Maximum number of candidate URLs to return.
 
         ### Returns
-        - The url of the best match or None if no match was found.
+        - List of candidate URLs in order of best match.
         """
-
         # Create initial search query
         search_query = create_song_title(song.name, song.artists).lower()
         if self.search_query:
@@ -177,6 +180,7 @@ class AudioProvider:
 
         logger.debug("[%s] Searching for %s", song.song_id, search_query)
 
+        candidates: List[str] = []
         isrc_urls: List[str] = []
 
         # search for song using isrc if it's available
@@ -200,43 +204,18 @@ class AudioProvider:
             )
 
             if len(isrc_results) == 1 and isrc_results[0].verified:
-                # If we only have one verified result, return it
-                # What's the chance of it being wrong?
-                logger.debug(
-                    "[%s] Returning only ISRC result %s",
-                    song.song_id,
-                    isrc_results[0].url,
-                )
+                candidates.append(isrc_results[0].url)
 
-                return isrc_results[0].url
-
-            if len(isrc_results) > 0:
+            elif len(isrc_results) > 0:
                 sorted_isrc_results = order_results(
                     isrc_results, song, self.search_query
                 )
-
-                # get the best result, if the score is above 80 return it
                 best_isrc_results = sorted(
                     sorted_isrc_results.items(), key=lambda x: x[1], reverse=True
                 )
-
-                logger.debug(
-                    "[%s] Filtered to %s ISRC results",
-                    song.song_id,
-                    len(best_isrc_results),
-                )
-
-                if len(best_isrc_results) > 0:
-                    best_isrc = best_isrc_results[0]
-                    if best_isrc[1] > 80.0:
-                        logger.debug(
-                            "[%s] Best ISRC result is %s with score %s",
-                            song.song_id,
-                            best_isrc[0].url,
-                            best_isrc[1],
-                        )
-
-                        return best_isrc[0].url
+                for isrc_res, score in best_isrc_results:
+                    if score >= 70.0 and isrc_res.url not in candidates:
+                        candidates.append(isrc_res.url)
 
         # Build candidate search queries with smart regex cleanups for subtitles/brackets
         candidate_queries = [search_query]
@@ -249,11 +228,20 @@ class AudioProvider:
             if clean_artist_query not in candidate_queries:
                 candidate_queries.append(clean_artist_query)
 
+        # Query fallback using just title and first artist if multiple artists exist
+        if len(song.artists) > 1:
+            simple_artist_query = f"{song.artist} - {song.name}".lower()
+            if simple_artist_query not in candidate_queries:
+                candidate_queries.append(simple_artist_query)
+
         results: Dict[Result, float] = {}
         for query in candidate_queries:
             for options in self.GET_RESULTS_OPTS:
-                # Query by songs/videos
-                search_results = self.get_results(query, **options)
+                try:
+                    search_results = self.get_results(query, **options)
+                except Exception as exc:
+                    logger.debug("[%s] Provider search error for %s: %s", song.song_id, query, exc)
+                    continue
 
                 if only_verified:
                     search_results = [
@@ -268,76 +256,36 @@ class AudioProvider:
                     options,
                 )
 
-                # Check if any of the search results is in the first isrc results
+                # Priority match from ISRC
                 isrc_result = next(
                     (result for result in search_results if result.url in isrc_urls),
                     None,
                 )
-
-                if isrc_result:
-                    logger.debug(
-                        "[%s] Best ISRC result is %s", song.song_id, isrc_result.url
-                    )
-                    return isrc_result.url
-
-                logger.debug(
-                    "[%s] Have to filter results: %s", song.song_id, self.filter_results
-                )
+                if isrc_result and isrc_result.url not in candidates:
+                    candidates.append(isrc_result.url)
 
                 if self.filter_results:
-                    # Order results
                     new_results = order_results(search_results, song, self.search_query)
                 else:
-                    new_results = {}
-                    if len(search_results) > 0:
-                        new_results = {search_results[0]: 100.0}
+                    new_results = {r: 100.0 for r in search_results}
 
-                logger.debug("[%s] Filtered to %s results", song.song_id, len(new_results))
+                results.update(new_results)
 
-                if len(new_results) != 0:
-                    # get the result with highest score
-                    best_result, best_score = self.get_best_result(new_results)
-                    logger.debug(
-                        "[%s] Best result is %s with score %s",
-                        song.song_id,
-                        best_result.url,
-                        best_score,
-                    )
+        # Sort all aggregated results by composite score
+        if results:
+            best_matches = get_best_matches(results, limit=limit * 2)
+            for res, score in best_matches:
+                if score >= 50.0 and res.url not in candidates:
+                    candidates.append(res.url)
 
-                    if best_score >= 80 and best_result.verified:
-                        logger.debug(
-                            "[%s] Returning verified best result %s with score %s",
-                            song.song_id,
-                            best_result.url,
-                            best_score,
-                        )
-                        return best_result.url
+        return candidates[:limit]
 
-                    if best_score >= 70:
-                        return best_result.url
-
-                    results.update(new_results)
-
-            if results:
-                best_res, best_sc = self.get_best_result(results)
-                if best_sc >= 60:
-                    return best_res.url
-
-        # No matches found
-        if not results:
-            logger.debug("[%s] No results found", song.song_id)
-            return None
-
-        # get the result with highest score
-        best_result, best_score = self.get_best_result(results)
-        logger.debug(
-            "[%s] Returning best result %s with score %s",
-            song.song_id,
-            best_result.url,
-            best_score,
-        )
-
-        return best_result.url
+    def search(self, song: Song, only_verified: bool = False) -> Optional[str]:
+        """
+        Search for a song and return best match URL.
+        """
+        candidates = self.search_candidates(song, only_verified=only_verified, limit=1)
+        return candidates[0] if candidates else None
 
     def get_best_result(self, results: Dict[Result, float]) -> Tuple[Result, float]:
         """
