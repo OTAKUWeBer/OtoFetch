@@ -240,6 +240,8 @@ def create_settings(
         **create_settings_type(arguments, config, DOWNLOADER_OPTIONS)  # type: ignore
     )
 
+    modernize_settings(downloader_options)
+
     return spotify_options, downloader_options
 
 
@@ -253,9 +255,17 @@ def modernize_settings(options: DownloaderOptions):
     warning_msg = "Deprecated '%s' value found for '%s' setting in config file. Using '%s' instead."
 
     # Respect backward compatibility with old boolean --restrict flag
-    if options["restrict"] is True:
+    if options.get("restrict") is True:
         logger.warning(warning_msg, True, "restrict", "strict")
         options["restrict"] = "strict"
+
+    # Migrate old root-folder default to Music directory
+    if options.get("output") in ["{artists} - {title}.{output-ext}", "{artist} - {title}.{output-ext}"]:
+        options["output"] = "Music/{artists} - {title}.{output-ext}"
+
+    # Migrate old single youtube-music default to robust provider chain
+    if options.get("audio_providers") == ["youtube-music"]:
+        options["audio_providers"] = ["youtube", "youtube-music", "soundcloud"]
 
 
 class GlobalConfig:

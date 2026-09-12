@@ -238,79 +238,90 @@ class AudioProvider:
 
                         return best_isrc[0].url
 
+        # Build candidate search queries with smart regex cleanups for subtitles/brackets
+        candidate_queries = [search_query]
+        clean_name = re.sub(r"[\(\[].*?[\)\]]", "", song.name).strip()
+        if clean_name and clean_name.lower() != song.name.lower():
+            clean_query = create_song_title(clean_name, song.artists).lower()
+            if clean_query not in candidate_queries:
+                candidate_queries.append(clean_query)
+            clean_artist_query = f"{song.artist} - {clean_name}".lower()
+            if clean_artist_query not in candidate_queries:
+                candidate_queries.append(clean_artist_query)
+
         results: Dict[Result, float] = {}
-        for options in self.GET_RESULTS_OPTS:
-            # Query YTM by songs only first, this way if we get correct result on the first try
-            # we don't have to make another request
-            search_results = self.get_results(search_query, **options)
+        for query in candidate_queries:
+            for options in self.GET_RESULTS_OPTS:
+                # Query by songs/videos
+                search_results = self.get_results(query, **options)
 
-            if only_verified:
-                search_results = [
-                    result for result in search_results if result.verified
-                ]
+                if only_verified:
+                    search_results = [
+                        result for result in search_results if result.verified
+                    ]
 
-            logger.debug(
-                "[%s] Found %s results for search query %s with options %s",
-                song.song_id,
-                len(search_results),
-                search_query,
-                options,
-            )
-
-            # Check if any of the search results is in the
-            # first isrc results, since they are not hashable we have to check
-            # by name
-            isrc_result = next(
-                (result for result in search_results if result.url in isrc_urls),
-                None,
-            )
-
-            if isrc_result:
                 logger.debug(
-                    "[%s] Best ISRC result is %s", song.song_id, isrc_result.url
-                )
-
-                return isrc_result.url
-
-            logger.debug(
-                "[%s] Have to filter results: %s", song.song_id, self.filter_results
-            )
-
-            if self.filter_results:
-                # Order results
-                new_results = order_results(search_results, song, self.search_query)
-            else:
-                new_results = {}
-                if len(search_results) > 0:
-                    new_results = {search_results[0]: 100.0}
-
-            logger.debug("[%s] Filtered to %s results", song.song_id, len(new_results))
-
-            # song type results are always more accurate than video type,
-            # so if we get score of 80 or above
-            # we are almost 100% sure that this is the correct link
-            if len(new_results) != 0:
-                # get the result with highest score
-                best_result, best_score = self.get_best_result(new_results)
-                logger.debug(
-                    "[%s] Best result is %s with score %s",
+                    "[%s] Found %s results for search query %s with options %s",
                     song.song_id,
-                    best_result.url,
-                    best_score,
+                    len(search_results),
+                    query,
+                    options,
                 )
 
-                if best_score >= 80 and best_result.verified:
+                # Check if any of the search results is in the first isrc results
+                isrc_result = next(
+                    (result for result in search_results if result.url in isrc_urls),
+                    None,
+                )
+
+                if isrc_result:
                     logger.debug(
-                        "[%s] Returning verified best result %s with score %s",
+                        "[%s] Best ISRC result is %s", song.song_id, isrc_result.url
+                    )
+                    return isrc_result.url
+
+                logger.debug(
+                    "[%s] Have to filter results: %s", song.song_id, self.filter_results
+                )
+
+                if self.filter_results:
+                    # Order results
+                    new_results = order_results(search_results, song, self.search_query)
+                else:
+                    new_results = {}
+                    if len(search_results) > 0:
+                        new_results = {search_results[0]: 100.0}
+
+                logger.debug("[%s] Filtered to %s results", song.song_id, len(new_results))
+
+                if len(new_results) != 0:
+                    # get the result with highest score
+                    best_result, best_score = self.get_best_result(new_results)
+                    logger.debug(
+                        "[%s] Best result is %s with score %s",
                         song.song_id,
                         best_result.url,
                         best_score,
                     )
 
-                    return best_result.url
+                    if best_score >= 80 and best_result.verified:
+                        logger.debug(
+                            "[%s] Returning verified best result %s with score %s",
+                            song.song_id,
+                            best_result.url,
+                            best_score,
+                        )
+                        return best_result.url
 
-                # Update final results with new results
-                results.update(new_results)
+                    if best_score >= 70:
+                        return best_result.url
+
+                    results.update(new_results)
+
+            if results:
+                best_res, best_sc = self.get_best_result(results)
+                if best_sc >= 60:
+                    return best_res.url
 
         # No matches found
         if not results:
