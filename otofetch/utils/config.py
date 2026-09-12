@@ -303,7 +303,7 @@ DOWNLOADER_OPTIONS: DownloaderOptions = {
     "playlist_retain_track_cover": False,
     "scan_for_songs": False,
     "m3u": None,
-    "output": "{artists} - {title}.{output-ext}",
+    "output": "Music/{artists} - {title}.{output-ext}",
     "overwrite": "skip",
     "search_query": None,
     "ffmpeg": "ffmpeg",
