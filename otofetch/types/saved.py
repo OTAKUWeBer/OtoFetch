@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 
 from otofetch.types.song import Song, SongList
+from otofetch.utils.console import spinner_status
 from otofetch.utils.spotify import SpotifyClient
 
 __all__ = ["Saved", "SavedError"]
@@ -39,23 +40,33 @@ class Saved(SongList):
         metadata = {"name": "Saved tracks", "url": url}
 
         spotify_client = SpotifyClient()
+
         if spotify_client.user_auth is False:  # type: ignore
             raise SavedError("You must be logged in to use this function")
 
-        saved_tracks_response = spotify_client.current_user_saved_tracks()
-        if saved_tracks_response is None:
-            raise SavedError("Couldn't get saved tracks")
+        with spinner_status(
+            "[bold cyan]Connecting to Spotify & fetching saved library tracks...[/bold cyan]"
+        ) as status:
+            saved_tracks_response = spotify_client.current_user_saved_tracks()
+            if saved_tracks_response is None:
+                raise SavedError("Couldn't get saved tracks")
 
-        saved_tracks = saved_tracks_response["items"]
+            saved_tracks = saved_tracks_response["items"]
+            status.update(
+                f"[bold cyan]Loaded [bold green]{len(saved_tracks)}[/bold green] saved tracks...[/bold cyan]"
+            )
 
-        # Fetch all saved tracks
-        while saved_tracks_response and saved_tracks_response["next"]:
-            response = spotify_client.next(saved_tracks_response)
-            if response is None:
-                break
+            # Fetch all saved tracks
+            while saved_tracks_response and saved_tracks_response["next"]:
+                response = spotify_client.next(saved_tracks_response)
+                if response is None:
+                    break
 
-            saved_tracks_response = response
-            saved_tracks.extend(saved_tracks_response["items"])
+                saved_tracks_response = response
+                saved_tracks.extend(saved_tracks_response["items"])
+                status.update(
+                    f"[bold cyan]Loaded [bold green]{len(saved_tracks)}[/bold green] saved tracks...[/bold cyan]"
+                )
 
         songs = []
         for track in saved_tracks:

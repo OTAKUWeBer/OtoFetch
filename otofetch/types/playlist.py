@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 
 from otofetch.types.song import Song, SongList
+from otofetch.utils.console import spinner_status
 from otofetch.utils.spotify import SpotifyClient
 
 __all__ = ["Playlist", "PlaylistError"]
@@ -45,45 +46,64 @@ class Playlist(SongList):
 
         spotify_client = SpotifyClient()
 
-        playlist = spotify_client.playlist(url)
-        if playlist is None:
-            raise PlaylistError("Invalid playlist URL.")
+        with spinner_status(
+            "[bold cyan]Connecting to Spotify & fetching playlist info...[/bold cyan]"
+        ) as status:
+            playlist = spotify_client.playlist(url)
+            if playlist is None:
+                raise PlaylistError("Invalid playlist URL.")
 
-        metadata = {
-            "name": playlist["name"],
-            "url": url,
-            "description": playlist["description"],
-            "author_url": playlist["external_urls"]["spotify"],
-            "author_name": playlist["owner"]["display_name"],
-            "cover_url": (
-                max(
-                    playlist["images"],
-                    key=lambda i: (
-                        0
-                        if i["width"] is None or i["height"] is None
-                        else i["width"] * i["height"]
-                    ),
-                )["url"]
-                if (playlist.get("images") is not None and len(playlist["images"]) > 0)
-                else ""
-            ),
-        }
+            playlist_name = playlist.get("name", "Playlist")
+            status.update(
+                f"[bold cyan]Fetching tracks for [green]{playlist_name}[/green]...[/bold cyan]"
+            )
 
-        playlist_response = spotify_client.playlist_items(url)
-        if playlist_response is None:
-            raise PlaylistError(f"Wrong playlist id: {url}")
+            metadata = {
+                "name": playlist["name"],
+                "url": url,
+                "description": playlist["description"],
+                "author_url": playlist["external_urls"]["spotify"],
+                "author_name": playlist["owner"]["display_name"],
+                "cover_url": (
+                    max(
+                        playlist["images"],
+                        key=lambda i: (
+                            0
+                            if i["width"] is None or i["height"] is None
+                            else i["width"] * i["height"]
+                        ),
+                    )["url"]
+                    if (playlist.get("images") is not None and len(playlist["images"]) > 0)
+                    else ""
+                ),
+            }
 
-        # Get all tracks from playlist
-        tracks = playlist_response["items"]
-        while playlist_response["next"]:
-            playlist_response = spotify_client.next(playlist_response)
-
-            # Failed to get response, break the loop
+            playlist_response = spotify_client.playlist_items(url)
             if playlist_response is None:
-                break
+                raise PlaylistError(f"Wrong playlist id: {url}")
 
-            # Add tracks to the list
-            tracks.extend(playlist_response["items"])
+            # Get all tracks from playlist
+            tracks = playlist_response["items"]
+            status.update(
+                f"[bold cyan]Loaded [bold green]{len(tracks)}[/bold green] tracks from [green]{playlist_name}[/green]...[/bold cyan]"
+            )
+
+            while playlist_response["next"]:
+                playlist_response = spotify_client.next(playlist_response)
+
+                # Failed to get response, break the loop
+                if playlist_response is None:
+                    break
+
+                # Add tracks to the list
+                tracks.extend(playlist_response["items"])
+                status.update(
+                    f"[bold cyan]Loaded [bold green]{len(tracks)}[/bold green] tracks from [green]{playlist_name}[/green]...[/bold cyan]"
+                )
+
+            status.update(
+                f"[bold cyan]Processing metadata for [bold green]{len(tracks)}[/bold green] tracks in [green]{playlist_name}[/green]...[/bold cyan]"
+            )
 
         songs = []
         for track_no, track in enumerate(tracks):

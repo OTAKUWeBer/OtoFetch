@@ -6,6 +6,9 @@ import json
 import os
 import sys
 
+from contextlib import contextmanager
+from rich.console import Console
+
 from otofetch.utils.config import DEFAULT_CONFIG, get_config_file
 from otofetch.utils.deno import download_deno as deno_download
 from otofetch.utils.deno import get_local_deno, is_deno_installed
@@ -15,6 +18,8 @@ from otofetch.utils.github import check_for_updates as get_update_status
 
 __all__ = [
     "clear_terminal",
+    "spinner_status",
+    "StatusUpdater",
     "is_frozen",
     "is_executable",
     "generate_initial_config",
@@ -24,6 +29,40 @@ __all__ = [
     "download_deno",
     "ACTIONS",
 ]
+
+_status_console = Console()
+
+
+class StatusUpdater:
+    """
+    Helper wrapper for dynamic status message updates.
+    """
+
+    def __init__(self, status_obj=None) -> None:
+        self._status = status_obj
+
+    def update(self, text: str) -> None:
+        """
+        Update the active spinner text safely.
+        """
+        if self._status is not None:
+            try:
+                self._status.update(text)
+            except Exception:
+                pass
+
+
+@contextmanager
+def spinner_status(initial_message: str):
+    """
+    Context manager providing a dedicated loading spinner with dynamic text updates.
+    Safely manages its own Rich console to avoid collision with other live displays.
+    """
+    try:
+        with _status_console.status(initial_message, spinner="dots") as status:
+            yield StatusUpdater(status)
+    except Exception:
+        yield StatusUpdater(None)
 
 
 def clear_terminal() -> None:
