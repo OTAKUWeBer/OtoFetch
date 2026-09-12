@@ -113,7 +113,7 @@ class YouTubeMusic(AudioProvider):
                 if not log_search_failures:
                     return []
 
-                logger.info(
+                logger.debug(
                     "YouTube Music returned no usable results for %s after %s attempts",
                     search_term,
                     self.SEARCH_ATTEMPTS,

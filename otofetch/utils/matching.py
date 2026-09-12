@@ -3,6 +3,7 @@ Module for all things matching related
 """
 
 import logging
+import re
 from itertools import product, zip_longest
 from math import exp
 from typing import Dict, List, Optional, Tuple
@@ -593,7 +594,14 @@ def calc_name_match(
     )
     debug(song.song_id, result.result_id, f"First name match: {name_match}")
 
-    # If name match is lower than 60%,
+    # Clean title comparison without parenthesized/bracketed additions
+    clean_song_name = slugify(re.sub(r"[\(\[].*?[\)\]]", "", song.name))
+    clean_result_name = slugify(re.sub(r"[\(\[].*?[\)\]]", "", result.name))
+    if clean_song_name:
+        clean_match = ratio(clean_result_name, clean_song_name)
+        name_match = max(name_match, clean_match)
+
+    # If name match is lower than 75%,
     # we try to match using the test strings
     if name_match <= 75:
         second_name_match = ratio(
@@ -625,7 +633,15 @@ def calc_time_match(song: Song, result: Result) -> float:
     """
 
     time_diff = abs(song.duration - result.duration)
-    score = exp(-0.1 * time_diff)
+    if time_diff <= 5:
+        return 100.0
+    if time_diff <= 15:
+        return 85.0
+    if time_diff <= 30:
+        return 65.0
+    if time_diff <= 60:
+        return 40.0
+    score = exp(-0.05 * time_diff)
     return score * 100
 
 
