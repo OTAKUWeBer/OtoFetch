@@ -30,7 +30,7 @@ __all__ = [
     "ACTIONS",
 ]
 
-_status_console = Console()
+from rich import get_console
 
 
 class StatusUpdater:
@@ -55,11 +55,12 @@ class StatusUpdater:
 @contextmanager
 def spinner_status(initial_message: str):
     """
-    Context manager providing a dedicated loading spinner with dynamic text updates.
-    Safely manages its own Rich console to avoid collision with other live displays.
+    Context manager providing a single, rock-solid loading spinner with dynamic text updates.
+    Uses get_console() directly without conflicting secondary displays.
     """
+    console = get_console()
     try:
-        with _status_console.status(initial_message, spinner="dots") as status:
+        with console.status(initial_message, spinner="dots") as status:
             yield StatusUpdater(status)
     except Exception:
         yield StatusUpdater(None)

@@ -192,6 +192,7 @@ class ProgressHandler:
         self.overall_task_id: Optional[TaskID] = None
 
         self.progress_tracker = ProgressTracker()
+        self._started = False
 
         if not self.simple_tui:
             console = get_console()
@@ -212,8 +213,16 @@ class ProgressHandler:
                 transient=True,
             )
 
-            # Basically a wrapper for rich's: with ... as ...
-            self.rich_progress_bar.__enter__()
+    def start(self) -> None:
+        """
+        Start the Rich progress display when downloading begins.
+        """
+        if not self.simple_tui and not self._started:
+            try:
+                self.rich_progress_bar.start()
+            except Exception:
+                pass
+            self._started = True
 
     def add_song(self, song: Song) -> None:
         """
@@ -249,6 +258,9 @@ class ProgressHandler:
         self.overall_total = 100 * count
 
         if not self.simple_tui:
+            if not self._started:
+                self.start()
+
             if self.song_count > 4:
                 self.overall_task_id = self.rich_progress_bar.add_task(
                     description="Total",
@@ -300,8 +312,12 @@ class ProgressHandler:
         Close the Tui Progress Handler.
         """
 
-        if not self.simple_tui:
-            self.rich_progress_bar.stop()
+        if not self.simple_tui and self._started:
+            try:
+                self.rich_progress_bar.stop()
+            except Exception:
+                pass
+            self._started = False
 
         logging.shutdown()
 
