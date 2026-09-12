@@ -14,6 +14,7 @@ from rich.progress import (
     BarColumn,
     Progress,
     ProgressColumn,
+    SpinnerColumn,
     Task,
     TaskID,
     TimeRemainingColumn,
@@ -196,6 +197,7 @@ class ProgressHandler:
             console = get_console()
 
             self.rich_progress_bar = Progress(
+                SpinnerColumn("dots", style="bold cyan"),
                 SizedTextColumn(
                     "{task.description}",
                     overflow="ellipsis",
@@ -207,10 +209,6 @@ class ProgressHandler:
                 BarColumn(bar_width=None, finished_style="green"),
                 "[progress.percentage]{task.percentage:>3.0f}%",
                 TimeRemainingColumn(),
-                # Normally when you exit the progress context manager (or call stop())
-                # the last refreshed display remains in the terminal with the cursor on
-                # the following line. You can also make the progress display disappear on
-                # exit by setting transient=True on the Progress constructor
                 transient=True,
             )
 
@@ -341,10 +339,10 @@ class SongTracker:
         if not self.parent.simple_tui:
             self.task_id = self.parent.rich_progress_bar.add_task(
                 description=escape(self.song_name),
-                message="Getting lyrics",
+                message="Queued",
                 total=100,
                 completed=self.progress,
-                start=False,
+                start=True,
                 visible=(not self.parent.quiet),
             )
 
