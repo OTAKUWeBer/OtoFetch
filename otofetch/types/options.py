@@ -1,0 +1,176 @@
+"""
+This file contains types for otofetch and downloader modules.
+Options types have all the fields marked as required.
+Settings types have all the fields marked as optional.
+"""
+
+from typing import List, Optional, Union
+from typing_extensions import TypedDict
+
+__all__ = [
+    "SpotifyOptions",
+    "DownloaderOptions",
+    "OtoFetchOptions",
+    "SpotifyOptionalOptions",
+    "DownloaderOptionalOptions",
+    "OtoFetchOptionalOptions",
+]
+
+
+class SpotifyOptions(TypedDict):
+    """
+    Options used for initializing the Spotify client.
+    """
+
+    client_id: str
+    client_secret: str
+    auth_token: Optional[str]
+    user_auth: bool
+    headless: bool
+    cache_path: str
+    no_cache: bool
+    max_retries: int
+    use_cache_file: bool
+    use_official_api: bool
+
+
+class DownloaderOptions(TypedDict):
+    """
+    Options used for initializing the Downloader.
+    """
+
+    audio_providers: List[str]
+    lyrics_providers: List[str]
+    genius_token: str
+    playlist_numbering: bool
+    playlist_retain_track_cover: bool
+    scan_for_songs: bool
+    m3u: Optional[str]
+    output: str
+    overwrite: str
+    search_query: Optional[str]
+    ffmpeg: str
+    bitrate: Optional[Union[str, int]]
+    ffmpeg_args: Optional[str]
+    format: str
+    save_file: Optional[str]
+    filter_results: bool
+    album_type: Optional[str]
+    threads: int
+    cookie_file: Optional[str]
+    restrict: Optional[str]
+    print_errors: bool
+    sponsor_block: bool
+    preload: bool
+    archive: Optional[str]
+    load_config: bool
+    log_level: str
+    simple_tui: bool
+    fetch_albums: bool
+    id3_separator: str
+    ytm_data: bool
+    add_unavailable: bool
+    generate_lrc: bool
+    force_update_metadata: bool
+    only_verified_results: bool
+    sync_without_deleting: bool
+    max_filename_length: Optional[int]
+    yt_dlp_args: Optional[str]
+    detect_formats: Optional[List[str]]
+    save_errors: Optional[str]
+    ignore_albums: Optional[List[str]]
+    proxy: Optional[str]
+    skip_explicit: Optional[bool]
+    log_format: Optional[str]
+    redownload: Optional[bool]
+    skip_album_art: Optional[bool]
+    create_skip_file: Optional[bool]
+    respect_skip_file: Optional[bool]
+    sync_remove_lrc: Optional[bool]
+
+
+class OtoFetchOptions(SpotifyOptions, DownloaderOptions):
+    """
+    Options used for initializing the OtoFetch client.
+    """
+
+
+class SpotifyOptionalOptions(TypedDict, total=False):
+    """
+    Options used for initializing the Spotify client.
+    """
+
+    client_id: str
+    client_secret: str
+    auth_token: Optional[str]
+    user_auth: bool
+    headless: bool
+    cache_path: str
+    no_cache: bool
+    max_retries: int
+    use_cache_file: bool
+    use_official_api: bool
+
+
+class DownloaderOptionalOptions(TypedDict, total=False):
+    """
+    Options used for initializing the Downloader.
+    """
+
+    audio_providers: List[str]
+    lyrics_providers: List[str]
+    genius_token: str
+    playlist_numbering: bool
+    playlist_retain_track_cover: bool
+    scan_for_songs: bool
+    m3u: Optional[str]
+    output: str
+    overwrite: str
+    search_query: Optional[str]
+    ffmpeg: str
+    bitrate: Optional[Union[str, int]]
+    ffmpeg_args: Optional[str]
+    format: str
+    save_file: Optional[str]
+    filter_results: bool
+    album_type: Optional[str]
+    threads: int
+    cookie_file: Optional[str]
+    restrict: Optional[str]
+    print_errors: bool
+    sponsor_block: bool
+    preload: bool
+    archive: Optional[str]
+    load_config: bool
+    log_level: str
+    simple_tui: bool
+    fetch_albums: bool
+    id3_separator: str
+    ytm_data: bool
+    add_unavailable: bool
+    generate_lrc: bool
+    force_update_metadata: bool
+    only_verified_results: bool
+    sync_without_deleting: bool
+    max_filename_length: Optional[int]
+    yt_dlp_args: Optional[str]
+    detect_formats: Optional[List[str]]
+    save_errors: Optional[str]
+    ignore_albums: Optional[List[str]]
+    proxy: Optional[str]
+    skip_explicit: Optional[bool]
+    log_format: Optional[str]
+    redownload: Optional[bool]
+    skip_album_art: Optional[bool]
+    create_skip_file: Optional[bool]
+    respect_skip_file: Optional[bool]
+    sync_remove_lrc: Optional[bool]
+
+
+class OtoFetchOptionalOptions(
+    SpotifyOptionalOptions, DownloaderOptionalOptions
+):
+    """
+    Options used for initializing the OtoFetch client.
+    This type is modified to not require all the fields.
+    """

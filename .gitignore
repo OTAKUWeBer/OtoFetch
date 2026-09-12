@@ -1,0 +1,82 @@
+# Ignore IDE folders
+.idea
+.vscode/
+
+# OtoFetch audio & cache files
+*.skip
+*.mp3
+*.m4a
+*.wav
+*.flac
+*.ogg
+*.opus
+*.otofetch
+*.m3u
+*.m3u8
+*.ipynb
+*.lrc
+*.profile
+.otofetch-cache
+.syncedlyrics
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Coverage and caches
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+
+# Temporary files
+*.temp*
+*temp.*
+temp/
+*.log
