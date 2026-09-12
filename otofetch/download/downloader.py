@@ -547,6 +547,16 @@ class Downloader:
                     ),
                 )
 
+            # Verify that existing file is not zero-byte or corrupted from sudden shutdown
+            if file_exists and self.settings["overwrite"] == "skip":
+                target_check = output_file if output_file.exists() else (dup_song_paths[0] if dup_song_paths else None)
+                if target_check and target_check.stat().st_size < 1024:
+                    try:
+                        target_check.unlink()
+                    except Exception:
+                        pass
+                    file_exists = False
+
             # If the file already exists and we don't want to overwrite it,
             # we can skip the download
             if (  # pylint: disable=R1705
@@ -891,6 +901,14 @@ class Downloader:
 
             return song, output_file
         except (Exception, UnicodeEncodeError) as exception:
+            # Clean up incomplete or partial output file if an error occurred
+            if output_file.exists():
+                try:
+                    if output_file.stat().st_size < 1024:
+                        output_file.unlink()
+                except Exception:
+                    pass
+
             if isinstance(exception, UnicodeEncodeError):
                 exception_cause = exception
                 exception = DownloaderError(

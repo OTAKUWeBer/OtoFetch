@@ -4,6 +4,7 @@ Module that holds the entry point for the console.
 
 import cProfile
 import logging
+import os
 import pstats
 import signal
 import sys
@@ -129,11 +130,13 @@ def entry_point():
     downloader = Downloader(downloader_settings)
 
     def graceful_exit(_signal, _frame):
-        if spotify_settings["use_cache_file"]:
-            save_spotify_cache(spotify_client.cache)
-
-        downloader.progress_handler.close()
-        sys.exit(0)
+        try:
+            if spotify_settings.get("use_cache_file"):
+                save_spotify_cache(spotify_client.cache)
+            downloader.progress_handler.close()
+        except Exception:
+            pass
+        os._exit(0)
 
     signal.signal(signal.SIGINT, graceful_exit)
     signal.signal(signal.SIGTERM, graceful_exit)
