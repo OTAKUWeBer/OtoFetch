@@ -103,6 +103,8 @@ otofetch --download-deno
 
 ## 🚀 Usage Guide
 
+> 💡 **Looking for in-depth tutorials, lossless FLAC downloads, custom folder structures, or playlist syncing? Check out our [Complete User Guide (GUIDE.md)](GUIDE.md).**
+
 ### 1. Download Tracks, Albums & Playlists
 
 ```bash

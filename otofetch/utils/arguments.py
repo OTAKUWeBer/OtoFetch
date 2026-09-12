@@ -24,6 +24,11 @@ class SmartFormatter(argparse.HelpFormatter):
     Class that overrides the default help formatter.
     """
 
+    def _format_text(self, text: str) -> str:
+        if text.startswith("N|"):
+            return "\n".join(text[2:].splitlines()) + "\n\n"
+        return super()._format_text(text)
+
     def _split_lines(self, text: str, width: int) -> List[str]:
         """
         Split the text in multiple lines if a line starts
@@ -716,9 +721,16 @@ def create_parser() -> ArgumentParser:
     # Initialize argument parser
     parser = ArgumentParser(
         prog="otofetch",
-        description="Download your Spotify playlists and songs along with album art and metadata",
+        description="OtoFetch: Fast, lightweight, and accurate terminal music downloader for Spotify.",
         formatter_class=SmartFormatter,
-        epilog="For more information, visit https://github.com/OTAKUWeBer/OtoFetch",
+        epilog=(
+            "N|Examples:\n"
+            "  otofetch 'https://open.spotify.com/playlist/...'\n"
+            "  otofetch 'https://open.spotify.com/track/...'\n"
+            "  otofetch 'Artist - Song Title'\n"
+            "  otofetch sync 'https://open.spotify.com/playlist/...' --save-file my_list.otofetch\n\n"
+            "GitHub & Documentation: https://github.com/OTAKUWeBer/OtoFetch"
+        ),
     )
 
     # Parse main options
